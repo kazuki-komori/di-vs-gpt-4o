@@ -11,7 +11,11 @@ import {
   Textarea,
   Title,
 } from "@mantine/core"
-import { IconFileAnalytics, IconFileUpload } from "@tabler/icons-react"
+import {
+  IconClearFormatting,
+  IconFileAnalytics,
+  IconFileUpload,
+} from "@tabler/icons-react"
 import MarkdownIt from "markdown-it"
 import { useState } from "react"
 import "@/assets/styles/markdown.css"
@@ -20,27 +24,43 @@ import { BackendAPI } from "@/api/backend-api"
 import { BlobStorageAPI } from "@/api/blob-storage"
 export const TopPage = () => {
   const [file, setFile] = useState<File | null>(null)
-  const [prompt, setPrompt] = useState<string>("")
+  const [prompt, setPrompt] = useState<string>(
+    "markdown 形式で表を抽出してください。",
+  )
   const [documentIntelligenceResult, setDocumentIntelligenceResult] =
     useState<string>("")
   const [gpt4oResult, setGpt4oResult] = useState<string>("")
+  const [gpt4oDocumentIntelligenceResult, setGpt4oDocumentIntelligenceResult] =
+    useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
+
+  const resetResult = () => {
+    setDocumentIntelligenceResult("")
+    setGpt4oResult("")
+    setGpt4oDocumentIntelligenceResult("")
+  }
 
   const startProcessing = async () => {
     if (!file) return
 
     setIsLoading(true)
     const fileURL = await BlobStorageAPI.uploadFile(file)
-    const result = await BackendAPI.file2text(fileURL)
+    const file2text = await BackendAPI.file2text(fileURL)
     console.log("file2text done")
-    const documentIntelligenceResult = await BackendAPI.analyzeFileContent(
-      prompt,
-      result,
-    )
     const GPT4oResult = await BackendAPI.chatWithImage(prompt, fileURL)
     setGpt4oResult(GPT4oResult)
+
+    const documentIntelligenceResult = await BackendAPI.analyzeFileContent(
+      prompt,
+      file2text,
+    )
     setDocumentIntelligenceResult(documentIntelligenceResult)
-    setFile(null)
+
+    const GPT4oDocumentIntelligenceResult = await BackendAPI.chatWithImage(
+      `${prompt}\nOCR による文字起こし結果が与えられますが、文字化けや存在しない住所など明らかに間違っているものに関しては、添付の画像を参考に適宜修正してください。\n## 文字起こし結果\n${file2text}`,
+      fileURL,
+    )
+    setGpt4oDocumentIntelligenceResult(GPT4oDocumentIntelligenceResult)
     setIsLoading(false)
   }
 
@@ -73,20 +93,33 @@ export const TopPage = () => {
         </Text>
         <Space h={8} />
         <Textarea
+          value={prompt}
           onChange={(event) => setPrompt(event.currentTarget.value)}
           size="lg"
           placeholder="ファイルの内容を元に、表を抽出してください。"
         />
         <Space h={48} />
         <Center>
-          <Button
-            loading={isLoading}
-            onClick={() => startProcessing()}
-            px={64}
-            leftSection={<IconFileAnalytics />}
-          >
-            分析開始
-          </Button>
+          {gpt4oResult || documentIntelligenceResult ? (
+            <Button
+              loading={isLoading}
+              onClick={() => resetResult()}
+              px={36}
+              leftSection={<IconClearFormatting />}
+            >
+              結果をリセット
+            </Button>
+          ) : (
+            <Button
+              disabled={!file}
+              loading={isLoading}
+              onClick={() => startProcessing()}
+              px={64}
+              leftSection={<IconFileAnalytics />}
+            >
+              分析開始
+            </Button>
+          )}
         </Center>
 
         {/* 結果 */}
@@ -94,7 +127,7 @@ export const TopPage = () => {
           <SimpleGrid cols={2}>
             <Paper p="lg" bg={"gray.1"} withBorder>
               <Text fz={"lg"} fw={"bold"} c={"gray.9"}>
-                gpt-4o のみで分析
+                gpt-4o 画像認識
               </Text>
               <Space h={16} />
               <Text
@@ -106,13 +139,25 @@ export const TopPage = () => {
             </Paper>
             <Paper p="lg" bg={"gray.2"} withBorder>
               <Text fz={"lg"} fw={"bold"} c={"gray.9"}>
-                gpt-4o + Document Intelligence で分析
+                Document Intelligence
               </Text>
               <Space h={16} />
               <Text
                 className="markdown"
                 dangerouslySetInnerHTML={{
                   __html: MarkdownIt().render(documentIntelligenceResult),
+                }}
+              />
+            </Paper>
+            <Paper p="lg" bg={"gray.2"} withBorder>
+              <Text fz={"lg"} fw={"bold"} c={"gray.9"}>
+                gpt-4o 画像認識 + Document Intelligence
+              </Text>
+              <Space h={16} />
+              <Text
+                className="markdown"
+                dangerouslySetInnerHTML={{
+                  __html: MarkdownIt().render(gpt4oDocumentIntelligenceResult),
                 }}
               />
             </Paper>

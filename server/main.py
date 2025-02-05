@@ -16,7 +16,7 @@ def file_to_text():
 def file_analyze():
     user_prompt = request.json.get("prompt")
     file_content = request.json.get("file_content")
-    prompt = f"## 指示\n{user_prompt}\n## ファイルの文字起こし\n{file_content}"
+    prompt = f"## 指示\n{user_prompt}OCR による文字起こし結果が与えられますが、文字化けや実在しない住所など間違っているものに関しては適宜修正してください。\n## ファイルの文字起こし\n{file_content}"
     return openai.chat(prompt)
 
 @app.route("/chat-with-image", methods=["POST"])
